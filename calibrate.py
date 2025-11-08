@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import json
 
-MATRIX_FILE = 'perspective_matrix2.json'
-IMAGE_REF_PATH = 'data/reference_image2.png' # Adaptez si votre nom de fichier est différent
+MATRIX_FILE = 'perspective_matrix.json'
+IMAGE_REF_PATH = 'data/reference_image.png' # Adaptez si votre nom de fichier est différent
 DEST_SIZE = 600 # Taille de la grille cible (5x5 devient 600x600 pixels)
 
 points_src = [] 
