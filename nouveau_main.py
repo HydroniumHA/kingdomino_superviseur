@@ -12,9 +12,13 @@ def empty(a):
 
 cv2.namedWindow("Parameters")
 cv2.resizeWindow("Parameters", 640, 240)
-cv2.createTrackbar("Threshold1", "Parameters", 150, 255, empty)
-cv2.createTrackbar("Threshold2", "Parameters", 150, 255, empty)
-cv2.createTrackbar("Area", "Parameters", 5000, 30000, empty)
+cv2.createTrackbar("Threshold1", "Parameters", 0, 255, empty)
+cv2.createTrackbar("Threshold2", "Parameters", 0, 255, empty)
+cv2.createTrackbar("Area", "Parameters", 5000, 100000, empty)
+
+cv2.setTrackbarPos("Threshold1", "Parameters", 100) 
+cv2.setTrackbarPos("Threshold2", "Parameters", 40)
+cv2.setTrackbarPos("Area", "Parameters", 40000) # Adapter l'aire pour la "taille" du carré du chateau.
 
 def stackImages(scale, imgArray):
     rows = len(imgArray)
@@ -55,8 +59,8 @@ def getContours(img, imgContour):
         if area > areaMin:
             cv2.drawContours(imgContour, contours, -1, (255, 0, 255), 2)
             perimeter = cv2.arcLength(cnt, True)
-            approx = cv2.approxPolyDP(cnt, 0.02 * perimeter, True)
-            print(len(approx))
+            approx = cv2.approxPolyDP(cnt, 0.02 * perimeter, True) # approx c'est les points du contour
+            # print(len(approx))
             x, y, w, h = cv2.boundingRect(approx)
             cv2.rectangle(imgContour, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
