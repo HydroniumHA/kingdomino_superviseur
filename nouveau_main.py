@@ -176,7 +176,7 @@ def main():
         a. Si changement de dedection > tollerence commencer le compteur de 5 secondes.
             Apres les 5 secondes, isoler la tuile fraichement posée (avec son aire) grace aux contours dedectés et aux coordonnées du royaume.
             On soustrait l'aire du chateau à l'aire totale dedectée pour obtenir l'aire de la tuile posée ainsi que ses coordonnées.
-            Afficher la tuile.
+            Afficher la tuile 
         b. Appeler la fonction processTile(cropped_img, area) pour process la tuile posée et on met à jour le royaume avec les nouvelles informations (aire et cordonnées).
     
     '''
