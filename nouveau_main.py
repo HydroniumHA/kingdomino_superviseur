@@ -25,7 +25,7 @@ cv2.createTrackbar("Area", "Parameters", 5000, 100000, empty)
 
 cv2.setTrackbarPos("Threshold1", "Parameters", 100) 
 cv2.setTrackbarPos("Threshold2", "Parameters", 40)
-cv2.setTrackbarPos("Area", "Parameters", 40000) # Adapter l'aire pour la "taille" du carré du chateau.
+cv2.setTrackbarPos("Area", "Parameters", 15000) # Adapter l'aire pour la "taille" du carré du chateau.
 
 def stackImages(scale, imgArray):
     rows = len(imgArray)
@@ -102,7 +102,7 @@ royaume = {
     "last_detected_time": None  # Temps de la dernière détection
 }
 
-CONFIRMATION_TIME = 5  # Temps de confirmation en secondes
+CONFIRMATION_TIME = 3  # Temps de confirmation en secondes
 
 def detectChateau(img, contours):
     global royaume
@@ -111,12 +111,22 @@ def detectChateau(img, contours):
         areaMin = cv2.getTrackbarPos("Area", "Parameters")
         if area > areaMin:
             x, y, w, h = cv2.boundingRect(cnt)
-            royaume["area"] = area
-            royaume["coordinates"] = (x, y, w, h)
-            royaume["last_detected_time"] = time.time()  # Enregistrer le temps de détection
-            print(f"Château détecté : Aire = {area}, Coordonnées = {x, y, w, h}")
+            if royaume["coordinates"] is None:
+                # Démarrer le chronomètre pour confirmer le château
+                if royaume["last_detected_time"] is None:
+                    royaume["last_detected_time"] = time.time()
+                    print("Château détecté, en attente de confirmation...")
+                elif time.time() - royaume["last_detected_time"] >= CONFIRMATION_TIME:
+                    # Confirmer le château après le délai
+                    royaume["area"] = area
+                    royaume["coordinates"] = (x, y, w, h)
+                    royaume["last_detected_time"] = None
+                    print(f"Château confirmé : Aire = {area}, Coordonnées = {x, y, w, h}")
             return cnt  # Retourne le contour du château
     return None
+
+# Ajout d'une variable globale pour la sensibilité
+SENSITIVITY_FACTOR = 0.5  # Facteur réglable pour la détection des nouvelles tuiles
 
 def isolateTile(img, contours):
     global royaume
@@ -124,7 +134,9 @@ def isolateTile(img, contours):
         print("Aucun royaume détecté. Impossible d'isoler les tuiles.")
         return
 
-    TOLERANCE_COORDS = 100  # Tolérance pour les coordonnées (en pixels)
+    # Tolérance dynamique basée sur la taille du château
+    DYNAMIC_TOLERANCE = max(50, int(0.1 * (royaume["coordinates"][2] + royaume["coordinates"][3])))
+    TOLERANCE_COORDS = DYNAMIC_TOLERANCE  # Tolérance pour les coordonnées (en pixels)
     TOLERANCE_AREA = 1000   # Tolérance pour l'aire
 
     royaume_x, royaume_y, royaume_w, royaume_h = royaume["coordinates"]
@@ -135,19 +147,29 @@ def isolateTile(img, contours):
         x, y, w, h = cv2.boundingRect(cnt)
 
         # Vérifier si le contour correspond à une tuile en excluant le royaume avec tolérance
-        if abs(area - royaume_area) > TOLERANCE_AREA or \
+        if area > SENSITIVITY_FACTOR * royaume_area and \
+           abs(area - royaume_area) > TOLERANCE_AREA and \
            not (royaume_x - TOLERANCE_COORDS <= x <= royaume_x + royaume_w + TOLERANCE_COORDS and
                 royaume_y - TOLERANCE_COORDS <= y <= royaume_y + royaume_h + TOLERANCE_COORDS):
             
             current_time = time.time()
+            cropped_img = img[y:y+h, x:x+w]
+
             if royaume["last_detected_time"] is None:
                 # Démarrer le chronomètre pour la nouvelle tuile
                 royaume["last_detected_time"] = current_time
                 print("Nouvelle tuile détectée, en attente de confirmation...")
+
+                # Afficher l'image fixe de la tuile détectée
+                cv2.imshow("Detected Tile (Awaiting Confirmation)", cropped_img)
             elif current_time - royaume["last_detected_time"] >= CONFIRMATION_TIME:
                 # Confirmer la tuile après le délai
                 print(f"Tuile confirmée après {CONFIRMATION_TIME} secondes.")
-                royaume["area"] += area  # Ajouter l'aire de la tuile au royaume
+                nouvelle_tuile_area = area - royaume_area  # Calculer l'aire de la nouvelle tuile
+                print(f"Aire de la nouvelle tuile : {nouvelle_tuile_area}")
+
+                # Mettre à jour les coordonnées et l'aire du royaume
+                royaume["area"] += nouvelle_tuile_area
                 royaume["coordinates"] = (
                     min(royaume_x, x),
                     min(royaume_y, y),
@@ -156,11 +178,13 @@ def isolateTile(img, contours):
                 )
                 royaume["last_detected_time"] = None  # Réinitialiser le temps de détection
                 print(f"Royaume mis à jour : Aire = {royaume['area']}, Coordonnées = {royaume['coordinates']}")
+
+                # Afficher la nouvelle tuile confirmée
+                cv2.imshow("Confirmed Tile", cropped_img)
             else:
                 print(f"En attente de confirmation... {current_time - royaume['last_detected_time']:.2f} secondes écoulées.")
 
             # Afficher la tuile détectée
-            cropped_img = img[y:y+h, x:x+w]
             displayAndProcessArea(img, cnt, area)
 
 def processTile(cropped_img, area):
@@ -213,8 +237,6 @@ def main():
                 # Détecter le château au début
                 detectChateau(imgContour, contours)
             else:
-                
-                # Isoler et traiter la tuile fraîchement posée
                 isolateTile(imgContour, contours)
 
             imgStack = stackImages(0.5, ([imgContour]))
@@ -223,9 +245,10 @@ def main():
             # MAJ le temps du dernier processing
             last_process_time = current_time
             # Print la durée du processing
-            end_process_time = time.time()
-            processing_duration = (end_process_time - start_process_time) * 1000  # Pour convertir en ms
-            print(f"Processing Duration: {processing_duration:.3f} milliseconds")
+
+            # end_process_time = time.time()
+            # processing_duration = (end_process_time - start_process_time) * 1000  # Pour convertir en ms
+            # print(f"Processing Duration: {processing_duration:.3f} milliseconds")
 
         if cv2.waitKey(1) & 0xFF == 27:  # Escape key
             break
