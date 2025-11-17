@@ -3,7 +3,8 @@ import numpy as np
 
 framewidth = 640
 frameheight = 480
-cap = cv2.VideoCapture("http://192.168.2.147:8080/video")
+# cap = cv2.VideoCapture("./data/output_fast.mp4")
+cap = cv2.VideoCapture("http://192.168.2.226:8080/video")
 cap.set(3, framewidth)
 cap.set(4, frameheight)
 
@@ -61,12 +62,32 @@ def getContours(img, imgContour):
             perimeter = cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, 0.02 * perimeter, True) # approx c'est les points du contour
             # print(len(approx))
+
+            # Pour récuperer les cordonnées des points :
+            # for point in approx:
+            #     x, y = point[0]  # Extractions des coordonnées x et y
+            #     print(f"Point: ({x}, {y})")
             x, y, w, h = cv2.boundingRect(approx)
             cv2.rectangle(imgContour, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
             cv2.putText(imgContour, "Points: " + str(len(approx)), (x + w + 20, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(imgContour, "Area: " + str(int(area)), (x + w + 20, y + 45), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0), 2)
 
+            # Appeler la nouvelle fonction pour afficher et traiter l'aire
+            # displayAndProcessArea(imgContour, cnt, area)
+
+def displayAndProcessArea(img, cnt, area):
+    x, y, w, h = cv2.boundingRect(cnt)
+    cropped_img = img[y:y+h, x:x+w]  # Rogner l'image 
+
+    # Afficher l'image rognée dans une nouvelle fenêtre
+    cv2.imshow("Cropped Area", cropped_img)
+
+    # On donne l'image rogné à la fonctionn pour process le biome. 
+    processBiome(cropped_img, area)
+
+def processBiome(cropped_img, area):
+    print("Processing biome with area:", area)
 
 while True:
     success, img = cap.read()
