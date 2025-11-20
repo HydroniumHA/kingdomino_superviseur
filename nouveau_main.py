@@ -5,7 +5,7 @@ import time
 framewidth = 640
 frameheight = 480
 # cap = cv2.VideoCapture("./data/output_fast.mp4")
-cap = cv2.VideoCapture("http://192.168.2.226:8080/video")
+cap = cv2.VideoCapture("http://192.168.178.153:8080/video")
 # cap.set(3, framewidth)
 # cap.set(4, frameheight)
 print("FPS : " + str(cap.get(cv2.CAP_PROP_FPS)))
@@ -28,6 +28,9 @@ cv2.setTrackbarPos("Threshold2", "Parameters", 40)
 cv2.setTrackbarPos("Area", "Parameters", 15000) # Adapter l'aire pour la "taille" du carré du chateau.
 
 def stackImages(scale, imgArray):
+    """
+    Empile plusieurs images dans une seule fenêtre pour affichage.
+    """
     rows = len(imgArray)
     cols = len(imgArray[0])
     rowsAvailable = isinstance(imgArray[0], list)
@@ -94,6 +97,23 @@ def displayAndProcessArea(img, cnt, area):
 
 def processBiome(cropped_img, area):
     print("Processing biome with area:", area)
+    # afficher une modal de choix de biome (herbe, eau, foret, champ, mine) dans le terminal
+    print("Choisissez le biome pour cette tuile :")
+    print("1. Herbe")
+    print("2. Eau")
+    print("3. Forêt")
+    print("4. Champ")
+    print("5. Mine")
+    choix = input("Entrez le numéro du biome choisi : ")
+    biome_dict = {
+        "1": "Herbe",
+        "2": "Eau",
+        "3": "Forêt",
+        "4": "Champ",
+        "5": "Mine"
+    }
+    biome = biome_dict.get(choix, "Inconnu")
+    print(f"Biome choisi : {biome} pour une aire de {area}")
 
 # Variable globale pour stocker les informations du royaume
 royaume = {
@@ -102,94 +122,161 @@ royaume = {
     "last_detected_time": None  # Temps de la dernière détection
 }
 
+# Variable globale pour les informations du château
+chateau = {
+    "area": 0,
+    "coordinates": None,
+    "last_detected_time": None  # Temps de la dernière détection
+}
+
+nouvelle_tuiele = {
+    "area": 0,
+    "coordinates": None,
+    "last_detected_time": None  # Temps de la dernière détection
+}
+
 CONFIRMATION_TIME = 3  # Temps de confirmation en secondes
+ 
 
 def detectChateau(img, contours):
-    global royaume
+    global chateau
     for cnt in contours:
         area = cv2.contourArea(cnt)
         areaMin = cv2.getTrackbarPos("Area", "Parameters")
         if area > areaMin:
             x, y, w, h = cv2.boundingRect(cnt)
-            if royaume["coordinates"] is None:
+            if chateau["coordinates"] is None:
                 # Démarrer le chronomètre pour confirmer le château
-                if royaume["last_detected_time"] is None:
-                    royaume["last_detected_time"] = time.time()
+                if chateau["last_detected_time"] is None:
+                    chateau["last_detected_time"] = time.time()
                     print("Château détecté, en attente de confirmation...")
-                elif time.time() - royaume["last_detected_time"] >= CONFIRMATION_TIME:
+                elif time.time() - chateau["last_detected_time"] >= CONFIRMATION_TIME:
                     # Confirmer le château après le délai
-                    royaume["area"] = area
-                    royaume["coordinates"] = (x, y, w, h)
-                    royaume["last_detected_time"] = None
+                    chateau["area"] = area
+                    chateau["coordinates"] = (x, y, w, h)
+                    chateau["last_detected_time"] = None
                     print(f"Château confirmé : Aire = {area}, Coordonnées = {x, y, w, h}")
-            return cnt  # Retourne le contour du château
+            return cnt
     return None
-
-# Ajout d'une variable globale pour la sensibilité
-SENSITIVITY_FACTOR = 0.5  # Facteur réglable pour la détection des nouvelles tuiles
 
 def isolateTile(img, contours):
     global royaume
+    global chateau
+
     if royaume["coordinates"] is None:
         print("Aucun royaume détecté. Impossible d'isoler les tuiles.")
         return
 
-    # Tolérance dynamique basée sur la taille du château
-    DYNAMIC_TOLERANCE = max(50, int(0.1 * (royaume["coordinates"][2] + royaume["coordinates"][3])))
-    TOLERANCE_COORDS = DYNAMIC_TOLERANCE  # Tolérance pour les coordonnées (en pixels)
-    TOLERANCE_AREA = 1000   # Tolérance pour l'aire
-
     royaume_x, royaume_y, royaume_w, royaume_h = royaume["coordinates"]
     royaume_area = royaume["area"]
+    chateau_x, chateau_y, chateau_w, chateau_h = chateau["coordinates"]
+    area_chateau = chateau["area"]
+
+    print(f"Royaume actuel : Aire = {royaume_area}, Coordonnées = {royaume['coordinates']}")
+
+    # cv2.imshow("Royaume", img[royaume_y:royaume_y+royaume_h, royaume_x:royaume_x+royaume_w])
+
+    # cordonnée du royaume : royaume_x, royaume_y, royaume_w, royaume_h
+    TOLERANCE = 50  # Tolérance en pixels pour les coordonnées    
+    # cordonnée du royaume - 100 pixels pour avoir une marge
+    # royaume_x = int(royaume_x + TOLERANCE / 2)
+    # royaume_y = int(royaume_y + TOLERANCE / 2)
+    # royaume_w = int(royaume_w - TOLERANCE)
+    # royaume_h = int(royaume_h - TOLERANCE)
+
+    # affichage du royaume avec marge et sans marges
+    # imgStack = stackImages(0.5, ([img[royaume_y:royaume_y+royaume_h, royaume_x:royaume_x+royaume_w]], [img[royaume_y-TOLERANCE//2:royaume_y+royaume_h+TOLERANCE//2, royaume_x-TOLERANCE//2:royaume_x+royaume_w+TOLERANCE//2]]))
+    # cv2.imshow("Royaume avec/sans marge", imgStack)
+    # cv2.imshow("Royaume avec marge", img[royaume_y:royaume_y+royaume_h, royaume_x:royaume_x+royaume_w])
+    
+    # on affiche l'image que displayAndProcessArea(imgContour, cnt, area) affiche mais en soustraiant la partie du royaume qui existe déjà
+
+    TILE_CONFIRMATION_TIME = 3  # Temps de confirmation en secondes
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        x, y, w, h = cv2.boundingRect(cnt)
+        nouvelle_tuile_area = area - royaume_area
+        cv2.drawContours(img, [cnt], -1, (0, 0, 255), 2)
 
-        # Vérifier si le contour correspond à une tuile en excluant le royaume avec tolérance
-        if area > SENSITIVITY_FACTOR * royaume_area and \
-           abs(area - royaume_area) > TOLERANCE_AREA and \
-           not (royaume_x - TOLERANCE_COORDS <= x <= royaume_x + royaume_w + TOLERANCE_COORDS and
-                royaume_y - TOLERANCE_COORDS <= y <= royaume_y + royaume_h + TOLERANCE_COORDS):
+        # Vérifier si l'aire de la nouvelle tuile est au moins 1,75 fois plus grande que celle du château
+        if nouvelle_tuile_area > area_chateau * 1.75:
+            print("Nouvelle tuile potentielle détectée avec aire :", nouvelle_tuile_area, " (Château aire :", area_chateau, ")")
+
+            ## On sait dedecter la pause d'une nouvelle tuile. Mainteant objectif : isoler la tuile (donc area - royaume_area) et ses coordonnées. 
+            # + commencer timer
+
+            # encadrer l'area de la nouvelle_tuile_area (donc les cordonnées de area - les cordonnnées de royaume) dans un nouveau cv2.imshow appelée nouvelle_tuile.
             
-            current_time = time.time()
-            cropped_img = img[y:y+h, x:x+w]
+            # 1. Créer un masque noir de la taille de l'image
+            mask_total = np.zeros(img.shape[:2], dtype=np.uint8)
+            mask_royaume = np.zeros(img.shape[:2], dtype=np.uint8)
 
-            if royaume["last_detected_time"] is None:
-                # Démarrer le chronomètre pour la nouvelle tuile
-                royaume["last_detected_time"] = current_time
-                print("Nouvelle tuile détectée, en attente de confirmation...")
+            # 2. Dessiner le contour détecté actuellement (Royaume + Tuile) en blanc sur le premier masque
+            cv2.drawContours(mask_total, [cnt], -1, 255, -1)
 
-                # Afficher l'image fixe de la tuile détectée
-                cv2.imshow("Detected Tile (Awaiting Confirmation)", cropped_img)
-            elif current_time - royaume["last_detected_time"] >= CONFIRMATION_TIME:
-                # Confirmer la tuile après le délai
-                print(f"Tuile confirmée après {CONFIRMATION_TIME} secondes.")
-                nouvelle_tuile_area = area - royaume_area  # Calculer l'aire de la nouvelle tuile
-                print(f"Aire de la nouvelle tuile : {nouvelle_tuile_area}")
+            # 3. Dessiner l'ancien royaume (rectangle connu) en blanc sur le deuxième masque
+            cv2.rectangle(mask_royaume, 
+                          (royaume_x, royaume_y), 
+                          (royaume_x + royaume_w, royaume_y + royaume_h), 
+                          255, -1)
 
-                # Mettre à jour les coordonnées et l'aire du royaume
-                royaume["area"] += nouvelle_tuile_area
-                royaume["coordinates"] = (
-                    min(royaume_x, x),
-                    min(royaume_y, y),
-                    max(royaume_x + royaume_w, x + w) - min(royaume_x, x),
-                    max(royaume_y + royaume_h, y + h) - min(royaume_y, y)
-                )
-                royaume["last_detected_time"] = None  # Réinitialiser le temps de détection
-                print(f"Royaume mis à jour : Aire = {royaume['area']}, Coordonnées = {royaume['coordinates']}")
+            # 4. Soustraction : Masque Total - Masque Royaume = Masque de la nouvelle tuile
+            mask_tuile_only = cv2.subtract(mask_total, mask_royaume)
 
-                # Afficher la nouvelle tuile confirmée
-                cv2.imshow("Confirmed Tile", cropped_img)
-            else:
-                print(f"En attente de confirmation... {current_time - royaume['last_detected_time']:.2f} secondes écoulées.")
+            # 5. Trouver les contours de cette différence pour obtenir les coordonnées de la tuile seule
+            contours_tuile, _ = cv2.findContours(mask_tuile_only, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            # Afficher la tuile détectée
-            displayAndProcessArea(img, cnt, area)
+            if contours_tuile:
+                # On prend le plus grand contour trouvé (au cas où il y aurait du bruit)
+                largest_cnt_tuile = max(contours_tuile, key=cv2.contourArea)
+                
+                # Récupérer les coordonnées (x, y, w, h) spécifiques à la nouvelle tuile
+                nouvelle_tuile_x, nouvelle_tuile_y, nouvelle_tuile_w, nouvelle_tuile_h = cv2.boundingRect(largest_cnt_tuile)
+
+
+                # Vérifier que les dimensions sont valides (>0)
+                if nouvelle_tuile_w > 0 and nouvelle_tuile_h > 0:
+                    # Découper l'image originale avec ces nouvelles coordonnées
+                    crop_tuile = img[nouvelle_tuile_y:nouvelle_tuile_y+nouvelle_tuile_h, nouvelle_tuile_x:nouvelle_tuile_x+nouvelle_tuile_w]
+                    if nouvelle_tuiele["last_detected_time"] is None:
+                        nouvelle_tuiele["last_detected_time"] = time.time()
+                        print("Nouvelle tuile détectée, en attente de confirmation...")
+                    elif time.time() - nouvelle_tuiele["last_detected_time"] >= TILE_CONFIRMATION_TIME:
+                        # Afficher
+                        cv2.imshow("nouvelle_tuile", crop_tuile)
+                        
+                        # Optionnel : Dessiner un rectangle vert autour de la nouvelle tuile sur l'image principale
+                        cv2.rectangle(img, (nouvelle_tuile_x, nouvelle_tuile_y), (nouvelle_tuile_x + nouvelle_tuile_w, nouvelle_tuile_y + nouvelle_tuile_h), (0, 255, 0), 2)
+
+                        # Stocker les informations de la nouvelle tuile
+                        nouvelle_tuiele["area"] = nouvelle_tuile_area
+                        nouvelle_tuiele["coordinates"] = (nouvelle_tuile_x, nouvelle_tuile_y, nouvelle_tuile_w, nouvelle_tuile_h)
+
+                        print("Nouvelle tuile détectée et confirmée avec aire :", nouvelle_tuile_area, "Coordonnées :", nouvelle_tuiele["coordinates"])
+
+                        # Appeler la fonction de traitement de la tuile (elle met à jour le royaume et reinialise la tuile après traitement)
+                        processTile(crop_tuile, nouvelle_tuile_area)
+
+
+
+                
+
 
 def processTile(cropped_img, area):
+    # Mettre à jour le royaume avec les nouvelles informations et réinitialiser la nouvelle_tuile["last_detected_time"] = None afin de permettre la dedection d'une nouvelle tuiel
     print("Processing tile with area:", area)
-    # Ajoutez ici le traitement spécifique pour la tuile
+    global royaume
+    global nouvelle_tuiele
+    processBiome(cropped_img, area)
+    # Mettre à jour le royaume avec les informations de la nouvelle tuile
+    royaume["area"] = nouvelle_tuiele["area"]
+    royaume["coordinates"] = nouvelle_tuiele["coordinates"]
+    print("Royaume mis à jour avec la nouvelle tuile : Aire =", royaume["area"], "Coordonnées =", royaume["coordinates"])
+    # Réinitialiser la nouvelle_tuile
+    nouvelle_tuiele["area"] = 0
+    nouvelle_tuiele["coordinates"] = None
+    nouvelle_tuiele["last_detected_time"] = None
+
 
 def main():
     global royaume
@@ -228,16 +315,27 @@ def main():
             kernel = np.ones((5, 5))
             imgDil = cv2.dilate(imgCanny, kernel, iterations=2)
             getContours(imgDil, imgContour)
+            contours, _ = cv2.findContours(imgDil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
 
             ### Logique 
 
-            contours, _ = cv2.findContours(imgDil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
-            if royaume["coordinates"] is None:
-                # Détecter le château au début
+            # Étape 1 : Détecter les contours du château avec une tolérance d'aires et de coordonnées.
+            # Si aucun changement n'est détecté dans les 5 secondes, enregistrer l'aire et les coordonnées du château dans la variable globale 'royaume'.
+            if chateau["coordinates"] is None:
+                print("CONDITION IF CHATEAU[\"coordinates\"] NONE TRUE")
+                # Appel de la fonction pour détecter le château au début, celle ci est appelee a chaque frame jusqu'a ce que le chateau soit detecté
                 detectChateau(imgContour, contours)
+                royaume = chateau 
+                
+            # Étape 2 : Chaque tour, vérifier les changements de détection.
             else:
+                # print("CONDITION SI CHATEAU & ROYAUME EST INITIALISE ")
                 isolateTile(imgContour, contours)
+
+                # b. Appeler la fonction processTile pour traiter la tuile posée et mettre à jour le royaume avec les nouvelles informations.
+                # (Cette logique est incluse dans la fonction isolateTile.)
 
             imgStack = stackImages(0.5, ([imgContour]))
             cv2.imshow("Result", imgStack)
@@ -250,7 +348,8 @@ def main():
             # processing_duration = (end_process_time - start_process_time) * 1000  # Pour convertir en ms
             # print(f"Processing Duration: {processing_duration:.3f} milliseconds")
 
-        if cv2.waitKey(1) & 0xFF == 27:  # Escape key
+        # Sortir de la boucle si la touche 'q' est pressée
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
