@@ -159,15 +159,9 @@ def detectChateau(img, contours):
                     chateau["area"] = area
                     chateau["coordinates"] = (x, y, w, h)
                     chateau["last_detected_time"] = None
-                    # royaume = {
-                    #     "area": chateau["area"],
-                    #     "coordinates": chateau["coordinates"],
-                    #     "last_detected_time": None
-                    # }
                     royaume['area'] = chateau['area']
                     royaume['coordinates'] = chateau['coordinates']
                     royaume['last_detected_time'] = None
-                    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                     print(f"Château confirmé : Aire = {area}, Coordonnées = {x, y, w, h}")
             return cnt
     return None
@@ -184,7 +178,7 @@ def isolateTile(img, contours):
     
     
 
-    print(f"Royaume actuel : Aire = {royaume['area']}, Coordonnées = {royaume['coordinates']}")
+    # print(f"Royaume actuel : Aire = {royaume['area']}, Coordonnées = {royaume['coordinates']}")
 
     # cv2.imshow("Royaume", img[royaume_y:royaume_y+royaume_h, royaume_x:royaume_x+royaume_w])
 
@@ -207,10 +201,10 @@ def isolateTile(img, contours):
 
     for cnt in contours:
         area_total_dedecte = cv2.contourArea(cnt)
-        nouvelle_tuile_area = area_total_dedecte - chateau["area"]
+        nouvelle_tuile_area = area_total_dedecte - royaume["area"]
         cv2.drawContours(img, [cnt], -1, (0, 0, 255), 2)
 
-        print(f"Aire totale détectée : {area_total_dedecte}, Aire du royaume : {royaume['area']}, Aire du château : {chateau['area']}, Aire de la nouvelle tuile calculée : {nouvelle_tuile_area}")
+        # print(f"Aire totale détectée : {area_total_dedecte}, Aire du royaume : {royaume['area']}, Aire du château : {chateau['area']}, Aire de la nouvelle tuile calculée : {nouvelle_tuile_area}")
 
         # Vérifier si l'aire de la nouvelle tuile est au moins 1,75 fois plus grande que celle du château
         if nouvelle_tuile_area > chateau['area'] * 1.75:
