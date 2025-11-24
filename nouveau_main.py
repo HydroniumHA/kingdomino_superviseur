@@ -1,6 +1,11 @@
 import cv2
 import numpy as np
 import time
+import subprocess
+import sys
+import os
+import uuid
+import tempfile
 
 framewidth = 640
 frameheight = 480
@@ -96,7 +101,7 @@ def displayArea(img, cnt, area):
     # processTile(cropped_img, area)
 
 def processBiome(cropped_img, area):
-    # cv2.imshow("image biome", cropped_img)
+    #cv2.imshow("image biome", cropped_img)
     print("Processing biome with area:", area)
     # afficher une modal de choix de biome (herbe, eau, foret, champ, mine) dans le terminal
     # print("Choisissez le biome pour cette tuile :")
@@ -115,6 +120,83 @@ def processBiome(cropped_img, area):
     # }
     # biome = biome_dict.get(choix, "Inconnu")
     # print(f"Biome choisi : {biome} pour une aire de {area}")
+
+    # Split the tile (domino) into two halves and classify each half
+    def classify_half_images(img):
+        # Determine split orientation: if tall -> split horizontally, else split vertically
+        h, w = img.shape[:2]
+        if h > w:
+            # split top/bottom
+            mid = h // 2
+            a = img[:mid, :]
+            b = img[mid:, :]
+        else:
+            # split left/right
+            mid = w // 2
+            a = img[:, :mid]
+            b = img[:, mid:]
+        return a, b
+
+    def run_classifier_on_image_array(img_arr):
+        # write to temporary PNG file and call classify_combined.py
+        tmpdir = os.path.join(os.getcwd(), 'tmp_matches')
+        os.makedirs(tmpdir, exist_ok=True)
+        name = f"half_{uuid.uuid4().hex}.png"
+        path = os.path.join(tmpdir, name)
+        cv2.imwrite(path, img_arr)
+        cmd = [sys.executable, os.path.join(os.getcwd(), 'classify_combined.py'), path, '--top', '3']
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
+        except Exception as e:
+            return None, f'Error running classifier: {e}'
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+        out = proc.stdout
+        # parse output for final decision
+        biome = None
+        chosen_by = None
+        if 'Final decision:' in out:
+            try:
+                idx = out.index('Final decision:')
+                sub = out[idx:]
+                # look for 'biome:' and 'chosen_by:' lines
+                for line in sub.splitlines():
+                    line = line.strip()
+                    if line.startswith('biome:'):
+                        biome = line.split(':', 1)[1].strip()
+                    if line.startswith('chosen_by:'):
+                        chosen_by = line.split(':', 1)[1].strip()
+            except Exception:
+                pass
+        # fallback: try to find 'Predicted biome:' or 'Predicted biome' from classify_biome
+        if biome is None:
+            for line in out.splitlines():
+                if 'Predicted biome:' in line:
+                    biome = line.split(':', 1)[1].strip()
+                    break
+        return biome, chosen_by
+
+    # split and classify
+    half_a, half_b = classify_half_images(cropped_img)
+    biome_a, by_a = run_classifier_on_image_array(half_a)
+    biome_b, by_b = run_classifier_on_image_array(half_b)
+
+    print(f'Half A biome: {biome_a} (by: {by_a})')
+    print(f'Half B biome: {biome_b} (by: {by_b})')
+
+    # show halves with labels
+    try:
+        display_a = half_a.copy()
+        display_b = half_b.copy()
+        label_a = f'{biome_a or "?"}'
+        label_b = f'{biome_b or "?"}'
+        cv2.putText(display_a, label_a, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+        cv2.putText(display_b, label_b, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+        cv2.imshow('half_A', display_a)
+        cv2.imshow('half_B', display_b)
+    except Exception:
+        pass
 
 
 # Variable globale pour stocker les informations du royaume
