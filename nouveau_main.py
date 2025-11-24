@@ -83,9 +83,9 @@ def getContours(img, imgContour):
             cv2.putText(imgContour, "Area: " + str(int(area)), (x + w + 20, y + 45), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0), 2)
 
             # Appeler la nouvelle fonction pour afficher et traiter l'aire
-            displayAndProcessArea(imgContour, cnt, area)
+            displayArea(imgContour, cnt, area)
 
-def displayAndProcessArea(img, cnt, area):
+def displayArea(img, cnt, area):
     x, y, w, h = cv2.boundingRect(cnt)
     cropped_img = img[y:y+h, x:x+w]
 
@@ -314,7 +314,7 @@ def main():
             imgCanny = cv2.Canny(imgGray, threshold1, threshold2)
             kernel = np.ones((5, 5))
             imgDil = cv2.dilate(imgCanny, kernel, iterations=2)
-            getContours(imgDil, imgContour)
+            getContours(imgDil, imgContour) # TODO : Essayer sans cette fonction, elle affiche last dedected tile window mais je crois qu'elle fait rien d'autre
             contours, _ = cv2.findContours(imgDil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
 
@@ -322,7 +322,7 @@ def main():
 
 
             # Étape 1 : Détecter les contours du château avec une tolérance d'aires et de coordonnées.
-            # Si aucun changement n'est détecté dans les 5 secondes, enregistrer l'aire et les coordonnées du château dans la variable globale 'royaume'.
+            # Si aucun changement n'est détecté dans les 3 secondes, enregistrer l'aire et les coordonnées du château dans la variable globale 'royaume'.
             if chateau["coordinates"] is None:
                 print("CONDITION IF CHATEAU[\"coordinates\"] NONE TRUE")
                 # Appel de la fonction pour détecter le château au début, celle ci est appelee a chaque frame jusqu'a ce que le chateau soit detecté
