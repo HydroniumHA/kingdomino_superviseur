@@ -5,13 +5,13 @@ Projet de vision par ordinateur pour superviser une partie de **Kingdomino** sur
 
 ## Objectif – Phase A + Phase B
 ## PHASE A – Lire et trier les chiffres (dominos)
-- Je définis 2 zones (ROI) : une pour **COL1** et une pour **COL2** (sélection manuelle, stockée en JSON).
-- Je coupe chaque colonne en 3 bandes : **haut / milieu / bas**.
-- Dans chaque bande, je détecte le domino avec **OpenCV** : amélioration du contraste (**CLAHE**), morphologie (**top-hat / close**), binarisation, puis **contours** pour récupérer une **bounding box** du domino.
-- Je localise la zone des chiffres dans le domino (contours + filtres aire/forme + fusion si 2 chiffres séparés).
-- Je lis le nombre avec **EasyOCR** (j’upscale, je teste normal/inversé, je garde le meilleur résultat).
-- Je stabilise la lecture : je valide un chiffre seulement s’il apparaît identique sur plusieurs frames.
-- Je vérifie le tri : si **haut ≤ milieu ≤ bas** → ordre correct, sinon ordre incorrect.
+- On définit 2 zones (ROI) : une pour **COL1** et une pour **COL2** (sélection manuelle, stockée en JSON).
+- On coupe chaque colonne en 3 bandes : **haut / milieu / bas**.
+- Dans chaque bande, on détecte le domino avec **OpenCV** : amélioration du contraste (**CLAHE**), morphologie (**top-hat / close**), binarisation, puis **contours** pour récupérer une **bounding box** du domino.
+- On localise la zone des chiffres dans le domino (contours + filtres aire/forme + fusion si 2 chiffres séparés).
+- On lit le nombre avec **EasyOCR** (on upscale, on teste normal/inversé, on garde le meilleur résultat).
+- On stabilise la lecture : on valide un chiffre seulement s’il apparaît identique sur plusieurs frames.
+- On vérifie le tri : si **haut ≤ milieu ≤ bas** → ordre correct, sinon ordre incorrect.
 
 ### **Outils principaux :** OpenCV (détection/bbox), EasyOCR (lecture), NumPy (calculs), time (temporisations/stabilité).
 - `reset_state()` : initialise la “mémoire” de lecture (valeurs lues, quelle bande on lit maintenant, stabilité, verrouillage du domino, timers OCR, etc.).
@@ -31,13 +31,13 @@ Projet de vision par ordinateur pour superviser une partie de **Kingdomino** sur
 
 ## PHASE B – Vérifier l’ordre de jeu des pions (haut -> milieu -> bas)
 
-- Je ne fais plus d’OCR : je détecte le mouvement.
-- Dans chaque colonne (ROI), je compare deux frames : `diff = abs(current - previous)`.
-- Je recoupe la ROI en 3 bandes (haut/milieu/bas) et je calcule un score de mouvement par bande (moyenne du diff).
+- On ne fait plus d’OCR : on détecte le mouvement.
+- Dans chaque colonne (ROI), on compare deux frames : `diff = abs(current - previous)`.
+- On recoupe la ROI en 3 bandes (haut/milieu/bas) et on calcule un score de mouvement par bande (moyenne du diff).
 - Une machine à états impose l’ordre :
   - `waiting_pickup` : le pion attendu doit bouger en COL1
   - `carrying` : il doit bouger en COL2
-  - `waiting_drop` : je vérifie un temps de calme, puis je valide et je passe au suivant
+  - `waiting_drop` : on vérifie un temps de calme, puis on valide et on passe au suivant
 - Si une autre bande bouge quand ce n’est pas son tour → ordre incorrect (message rouge).
 
 **Outils principaux :** OpenCV (absdiff + blur), NumPy (scores), time (calm_time), logique Python (`TurnManager`).
