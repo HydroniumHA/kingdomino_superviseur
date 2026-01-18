@@ -10,7 +10,7 @@ import tempfile
 framewidth = 640
 frameheight = 480
 # cap = cv2.VideoCapture("./data/output_fast.mp4")
-cap = cv2.VideoCapture("http://192.168.241.152:8080/video")
+cap = cv2.VideoCapture("http://192.168.178.153:8080/video")
 # cap.set(3, framewidth)
 # cap.set(4, frameheight)
 print("FPS : " + str(cap.get(cv2.CAP_PROP_FPS)))
