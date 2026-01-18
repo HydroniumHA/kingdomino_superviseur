@@ -10,7 +10,7 @@ import tempfile
 framewidth = 640
 frameheight = 480
 # cap = cv2.VideoCapture("./data/output_fast.mp4")
-cap = cv2.VideoCapture("http://192.168.149.152:8080/video")
+cap = cv2.VideoCapture("http://192.168.241.152:8080/video")
 # cap.set(3, framewidth)
 # cap.set(4, frameheight)
 print("FPS : " + str(cap.get(cv2.CAP_PROP_FPS)))
@@ -230,21 +230,25 @@ def detectChateau(img, contours):
         area = cv2.contourArea(cnt)
         areaMin = cv2.getTrackbarPos("Area", "Parameters")
         if area > areaMin:
-            x, y, w, h = cv2.boundingRect(cnt)
+            perimeter = cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, 0.02 * perimeter, True) # approx est le contour polygonal
+
+            # bounding_rect_area = img[y:y+h, x:x+w] # y:y+h veux dire y à y+h et x:x+w veut dire x à x+w
+            # cv2.imshow("BoundingRect Coordinates", bounding_rect_area)
             if chateau["coordinates"] is None:
                 # Démarrer le chronomètre pour confirmer le château
                 if chateau["last_detected_time"] is None:
                     chateau["last_detected_time"] = time.time()
-                    print("Château détecté, en attente de confirmation...")
+                    print("Château potentiel détecté, en attente de confirmation...")
                 elif time.time() - chateau["last_detected_time"] >= CONFIRMATION_TIME:
                     # Confirmer le château après le délai
                     chateau["area"] = area
-                    chateau["coordinates"] = (x, y, w, h)
+                    chateau["coordinates"] = approx  # On stocke le contour, pas le rectangle
                     chateau["last_detected_time"] = None
                     royaume['area'] = chateau['area']
                     royaume['coordinates'] = chateau['coordinates']
                     royaume['last_detected_time'] = None
-                    print(f"Château confirmé : Aire = {area}, Coordonnées = {x, y, w, h}")
+                    print(f"Château confirmé : Aire = {area}, avec {len(approx)} points.")
             return cnt
     return None
 
@@ -256,29 +260,6 @@ def isolateTile(img, contours):
         print("Aucun royaume détecté. Impossible d'isoler les tuiles.")
         return
 
-    royaume_x, royaume_y, royaume_w, royaume_h = royaume["coordinates"]
-    
-    
-
-    # print(f"Royaume actuel : Aire = {royaume['area']}, Coordonnées = {royaume['coordinates']}")
-
-    # cv2.imshow("Royaume", img[royaume_y:royaume_y+royaume_h, royaume_x:royaume_x+royaume_w])
-
-    # cordonnée du royaume : royaume_x, royaume_y, royaume_w, royaume_h
-    # TOLERANCE = 50  # Tolérance en pixels pour les coordonnées    
-    # cordonnée du royaume - 100 pixels pour avoir une marge
-    # royaume_x = int(royaume_x + TOLERANCE / 2)
-    # royaume_y = int(royaume_y + TOLERANCE / 2)
-    # royaume_w = int(royaume_w - TOLERANCE)
-    # royaume_h = int(royaume_h - TOLERANCE)
-
-    # affichage du royaume avec marge et sans marges
-    # imgStack = stackImages(0.5, ([img[royaume_y:royaume_y+royaume_h, royaume_x:royaume_x+royaume_w]], [img[royaume_y-TOLERANCE//2:royaume_y+royaume_h+TOLERANCE//2, royaume_x-TOLERANCE//2:royaume_x+royaume_w+TOLERANCE//2]]))
-    # cv2.imshow("Royaume avec/sans marge", imgStack)
-    # cv2.imshow("Royaume avec marge", img[royaume_y:royaume_y+royaume_h, royaume_x:royaume_x+royaume_w])
-    
-    # on affiche l'image que displayAndProcessArea(imgContour, cnt, area) affiche mais en soustraiant la partie du royaume qui existe déjà
-
     TILE_CONFIRMATION_TIME = 3  # Temps de confirmation en secondes
 
     for cnt in contours:
@@ -286,7 +267,14 @@ def isolateTile(img, contours):
         nouvelle_tuile_area = area_total_dedecte - royaume["area"]
         cv2.drawContours(img, [cnt], -1, (0, 0, 255), 2)
 
-        # print(f"Aire totale détectée : {area_total_dedecte}, Aire du royaume : {royaume['area']}, Aire du château : {chateau['area']}, Aire de la nouvelle tuile calculée : {nouvelle_tuile_area}")
+        print(f"\n\n-----")
+        print(f"Aire totale détectée : {area_total_dedecte}")
+        print(f"Aire du royaume : {royaume['area']}")
+        print(f"Aire de la nouvelle tuile calculée : {nouvelle_tuile_area}")
+        print(f"Aire du château : {chateau['area']}")
+        print("-----")
+
+
 
         # Vérifier si l'aire de la nouvelle tuile est au moins 1,75 fois plus grande que celle du château
         if nouvelle_tuile_area > chateau['area'] * 1.75:
@@ -305,10 +293,8 @@ def isolateTile(img, contours):
             cv2.drawContours(mask_total, [cnt], -1, 255, -1)
 
             # 3. Dessiner l'ancien royaume (rectangle connu) en blanc sur le deuxième masque
-            cv2.rectangle(mask_royaume, 
-                          (royaume_x, royaume_y), 
-                          (royaume_x + royaume_w, royaume_y + royaume_h), 
-                          255, -1)
+            # On utilise drawContours au lieu de rectangle
+            cv2.drawContours(mask_royaume, [royaume["coordinates"]], -1, 255, -1)
 
             # 4. Soustraction : Masque Total - Masque Royaume = Masque de la nouvelle tuile
             mask_tuile_only = cv2.subtract(mask_total, mask_royaume)
@@ -339,9 +325,10 @@ def isolateTile(img, contours):
                         cv2.rectangle(img, (nouvelle_tuile_x, nouvelle_tuile_y), (nouvelle_tuile_x + nouvelle_tuile_w, nouvelle_tuile_y + nouvelle_tuile_h), (0, 255, 0), 2)
 
                         # Stocker les informations de la nouvelle tuile
-                        nouvelle_tuile["area"] = nouvelle_tuile_area
-                        nouvelle_tuile["coordinates"] = (nouvelle_tuile_x, nouvelle_tuile_y, nouvelle_tuile_w, nouvelle_tuile_h)
+                        nouvelle_tuile["area"] = cv2.contourArea(largest_cnt_tuile) # Aire plus précise
+                        nouvelle_tuile["coordinates"] = largest_cnt_tuile # On stocke le contour de la tuile
 
+                        # L'aire calculée par soustraction est une approximation, on utilise l'aire du contour trouvé
                         print("Nouvelle tuile détectée et confirmée avec aire :", nouvelle_tuile_area, "Coordonnées :", nouvelle_tuile["coordinates"])
 
                         # Appeler la fonction de traitement de la tuile (elle met à jour le royaume et reinialise la tuile après traitement)
@@ -359,9 +346,24 @@ def processTile(cropped_img, area):
     global nouvelle_tuile
     processBiome(cropped_img, area)
     # Mettre à jour le royaume avec les informations de la nouvelle tuile
-    royaume["area"] = royaume["area"] + nouvelle_tuile["area"]
-    # royaume["coordinates"] = nouvelle_tuile["coordinates"] # TODO : Est ce que je dois les calculer ?
-    print("Royaume mis à jour avec la nouvelle tuile : Aire =", royaume["area"], "Coordonnées =", royaume["coordinates"])
+    if royaume["coordinates"] is not None and nouvelle_tuile["coordinates"] is not None:
+        # Créer un masque vide pour fusionner les polygones
+        # On a besoin de la taille de l'image, on la récupère depuis la capture vidéo
+        h, w = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        mask_fusion = np.zeros((h, w), dtype=np.uint8)
+
+        # Dessiner l'ancien royaume et la nouvelle tuile sur le masque
+        cv2.drawContours(mask_fusion, [royaume["coordinates"]], -1, 255, -1)
+        cv2.drawContours(mask_fusion, [nouvelle_tuile["coordinates"]], -1, 255, -1)
+
+        # Trouver le contour externe de la forme fusionnée
+        contours_fusion, _ = cv2.findContours(mask_fusion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours_fusion:
+            new_kingdom_contour = max(contours_fusion, key=cv2.contourArea)
+            royaume["coordinates"] = new_kingdom_contour
+            royaume["area"] = cv2.contourArea(new_kingdom_contour)
+
+    print("Royaume mis à jour : Nouvelle Aire =", royaume["area"])
     # Réinitialiser la nouvelle_tuile
     nouvelle_tuile["area"] = 0
     nouvelle_tuile["coordinates"] = None
@@ -385,6 +387,7 @@ def main():
         # Limite la fréquence de traitement (à TARGET_FPS)
         current_time = time.time()
         if (current_time - last_process_time) >= FRAME_INTERVAL:
+            print(f"\n\n\n --- New Frame Processed at {current_time - game_timer_start:.2f} seconds ---")
             start_process_time = time.time()
             
             imgContour = img.copy()
@@ -418,8 +421,24 @@ def main():
                 # (Cette logique est incluse dans la fonction isolateTile.)
 
             imgStack = stackImages(0.5, ([imgContour]))
+
+            # Dessiner le contour du royaume actuel en bleu
+            if royaume["coordinates"] is not None:
+                cv2.drawContours(imgStack, [royaume["coordinates"]], -1, (255, 0, 0), 2)
+                # Mettre un texte "Royaume" près du centre du polygone
+                M = cv2.moments(royaume["coordinates"])
+                if M["m00"] != 0:
+                    cX = int(M["m10"] / M["m00"])
+                    cY = int(M["m01"] / M["m00"])
+                    cv2.putText(imgStack, "Royaume", (cX - 40, cY), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
             cv2.imshow("Result", imgStack)
-            
+
+            # Print les cordonnées de chateau et royaume
+            print("Aire du château :", chateau["area"])
+            print("Aire du royaume :", royaume["area"])
+
+                
             # MAJ le temps du dernier processing
             last_process_time = current_time
             # Print la durée du processing
@@ -427,6 +446,7 @@ def main():
             # end_process_time = time.time()
             # processing_duration = (end_process_time - start_process_time) * 1000  # Pour convertir en ms
             # print(f"Processing Duration: {processing_duration:.3f} milliseconds")
+            print(f"Processing Duration: {((time.time() - start_process_time) * 1000):.3f} milliseconds\n\n")
 
         # Sortir de la boucle si la touche 'q' est pressée
         if cv2.waitKey(1) & 0xFF == ord('q'):
