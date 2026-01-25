@@ -1,5 +1,4 @@
 # Jeu Kingdomino 
-**Groupe :** Simon Georges, Diyar Gungor, Bircan Tig
 
 Projet de vision par ordinateur pour superviser une partie de **Kingdomino** sur le **plateau 1 (zone centrale)**.
 
